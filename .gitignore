@@ -1,0 +1,6 @@
+node_modules/
+dist/
+mcp-server/dist/
+.env
+.DS_Store
+bench/results/
