@@ -1,0 +1,20 @@
+{
+  "name": "openjev",
+  "owner": { "name": "OpenJev Contributors" },
+  "metadata": {
+    "description": "OpenJev plugins for Claude Code — live typed Jev decisions.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "claude-jev",
+      "source": "./",
+      "description": "Jev System One for Claude Code — typed Choice/Noul/Score decisions via live TypeSafe API (same 5 tools as opencode-openjev, no mock).",
+      "version": "0.1.0",
+      "author": { "name": "OpenJev Contributors" },
+      "license": "MIT",
+      "keywords": ["jev", "typesafe", "system-one", "mcp", "typed-decisions"],
+      "category": "productivity"
+    }
+  ]
+}

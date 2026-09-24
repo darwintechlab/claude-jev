@@ -18,30 +18,31 @@ echo 'export TYPESAFE_API_KEY=ts_…' >> ~/.zshrc && source ~/.zshrc
 ## 3. Install the plugin (local — no registry needed)
 
 ```bash
-git clone https://github.com/anomalyco/opencode-openjev.git  # or your claude-jev fork
-cd claude-jev
+git clone https://github.com/darwintechlab/claude-openjev.git
+cd claude-openjev
 npm install --cache /tmp/npm-cache
-npm run build   # tsc → mcp-server/dist
+npm run build   # typecheck + esbuild → single self-contained mcp-server/dist/index.js
 
 claude plugin validate ./   # ✔ Validation passed
 ```
 
-The plugin is **file-based** — no `npm publish` required. `mcp-server` is declared in `.mcp.json` as `jev → node ${CLAUDE_PLUGIN_ROOT}/mcp-server/dist/index.js` with `env:TYPESAFE_API_KEY` passthrough.
+The plugin is **file-based** — no `npm publish` required. `mcp-server` is declared inline under `mcpServers` in `.claude-plugin/plugin.json` as `jev → node ${CLAUDE_PLUGIN_ROOT}/mcp-server/dist/index.js` with `env:TYPESAFE_API_KEY` passthrough. (Not a root `.mcp.json`: Claude Code would also load that as a *project* server when you open this repo, where `${CLAUDE_PLUGIN_ROOT}` is undefined → `CONNECTION_CLOSED`.)
 
 ## 4. Run with Claude
 
 Dev (recommended — no install):
 
 ```bash
-TYPESAFE_API_KEY=ts_... claude --plugin-dir ./claude-jev
+TYPESAFE_API_KEY=ts_... claude --plugin-dir .
 # inside Claude:
 # /jev  (skill)  or just ask: "use jev_choice to route this ticket"
 ```
 
-Marketplace style (once published):
+Installed (loads in every project) — the repo is its own marketplace (`openjev`, `.claude-plugin/marketplace.json`):
 
 ```bash
-claude plugin add ./claude-jev
+claude plugin marketplace add darwintechlab/claude-openjev   # or a local clone path
+claude plugin install claude-jev@openjev
 # then in any project: claude (plugin auto-loads)
 ```
 
@@ -82,7 +83,7 @@ jev_ask { state:'{"ticket":"payouts failing"}', questions:'{"team":{"type":"choi
 | `JEV_MODEL` | Override (`jev-latest` → `jev-1.13.0`) |
 | `JEV_BASE_URL` | Self-hosted OpenJev |
 
-No `.env` auto-load here (MCP inherits Claude's env) — use shell export or `env` in `.mcp.json`.
+No `.env` auto-load here (MCP inherits Claude's env) — use shell export or `mcpServers.jev.env` in `.claude-plugin/plugin.json`.
 
 ## 7. Troubleshooting
 
