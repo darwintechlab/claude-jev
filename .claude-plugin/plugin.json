@@ -12,7 +12,7 @@
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-server/dist/index.js"],
       "env": {
-        "TYPESAFE_API_KEY": "${TYPESAFE_API_KEY}",
+        "TYPESAFE_API_KEY": "${TYPESAFE_API_KEY:-}",
         "JEV_MODEL": "${JEV_MODEL:-}"
       }
     }

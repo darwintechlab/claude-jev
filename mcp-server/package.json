@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc --noEmit && rm -rf dist && esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/index.js",
+    "build": "tsc --noEmit && rm -rf dist && esbuild src/index.ts src/client.ts src/gate.ts --bundle --platform=node --format=esm --target=node20 --outdir=dist",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

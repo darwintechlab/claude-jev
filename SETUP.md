@@ -56,7 +56,7 @@ jev_doctor
 Headless MCP smoke (no Claude):
 
 ```bash
-TYPESAFE_API_KEY=ts_... printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"jev_doctor","arguments":{}}}\n' | node mcp-server/dist/index.js
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"jev_doctor","arguments":{}}}\n' | TYPESAFE_API_KEY=ts_... node mcp-server/dist/index.js
 ```
 
 ## 5. First decisions (copy-paste in Claude)

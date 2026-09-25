@@ -82,12 +82,14 @@ For the full walkthrough and troubleshooting, see **[SETUP.md](./SETUP.md)**.
 
 ## How accurate is it?
 
-`claude-jev` mirrors the opencode plugin's model and client, and the same hosted Jev powers both. We ran the live routing bench (`bench/bench.mjs`) on 10 tickets:
+We tested it on 115 labeled decisions covering routing, tool choice, review verdicts, command guardrails, urgency and severity ([full results](./bench/results.md)):
 
-* **10/10 correct**, all at confidence 0.96, p50 307 ms.
-* **Confident answers are more reliable.** In the opencode plugin's 52-case eval on the same model, 80% of the pick-one decisions scored 0.75 or higher and 96% of those were correct; severity scoring was the weakest area (67%, only 6 cases).
+* **90% correct overall** (104/115). That's 97% on clear cases and 81% on ambiguous ones.
+* **Confident answers are more reliable.** At the default 0.75 gate, 85% of the pick-one decisions were accepted and 98% of those were correct. The top 50% by confidence were 100% correct.
+* **Severity scoring is the weakest area:** 67% correct.
+* **Against Claude Opus 5.5** (low effort) on the same cases, Opus got 91.3% and Jev 90.4%, which isn't a significant difference (McNemar p = 0.51). Jev answered about 9× faster (p50 223 ms vs 2.1 s) at roughly 1/128 of the cost.
 
-The test sets are small and we wrote them ourselves, so treat these numbers as a starting point. To measure accuracy on your own workload, edit the tickets in `bench/bench.mjs` and run `npm run bench`.
+The test set is small and we wrote it ourselves, so treat these numbers as a starting point. To measure accuracy on your own workload, replace `bench/dataset.jsonl` with your own cases and run `npm run bench:eval`.
 
 ## Your data
 
@@ -247,9 +249,17 @@ The MCP tools can be called from skills, subagents, and hooks wherever you'd oth
 npm install
 npm run build      # typecheck + esbuild → mcp-server/dist/index.js
 npm run typecheck  # tsc --noEmit
-npm run bench      # live latency/accuracy bench (needs TYPESAFE_API_KEY)
+npm test           # node --test: metrics, baseline parsing, gates, client (no key needed)
+npm run bench      # live latency/parallelism bench (needs TYPESAFE_API_KEY)
+npm run bench:eval # decision-quality eval: accuracy/Brier/ECE/risk-coverage on 115 labeled cases
+# head-to-head vs Claude through your Claude Code login (no API key):
+#   BASELINE_MODEL=claude-opus-5-5 BASELINE_CONCURRENCY=4 npm run bench:eval
+# or any OpenAI-compatible endpoint:
+#   BASELINE_MODEL=gpt-4o-mini BASELINE_API_KEY=sk-... npm run bench:eval
 claude plugin validate ./   # should pass
 ```
+
+`bench/eval.mjs` loads `./.env` if present. See [bench/results.md](./bench/results.md) for measured results and every knob.
 
 ### Project layout
 
@@ -264,11 +274,18 @@ mcp-server/
     gate.ts     # confidence gating (auto / escalate thresholds)
     audit.ts    # privacy-safe audit log entries (state hash, not raw state)
     state.ts    # smartTruncate + criteria lint
-  dist/         # esbuild bundle (mcp-server/dist/index.js)
+  dist/         # esbuild bundles: index.js (server), client.js + gate.js (for bench/tests)
 skills/
   jev/SKILL.md  # optional: makes Claude default to jev_* tools
 bench/
-  bench.mjs     # live latency/accuracy/parallelism bench
+  bench.mjs     # live latency/parallelism bench
+  eval.mjs      # decision-quality eval + LLM head-to-head (claude -p or OpenAI-compatible)
+  metrics.mjs   # pure metric functions (Brier, ECE, risk-coverage, Wilson, McNemar, bootstrap)
+  baseline.mjs  # LLM prompt + answer normalization + self-consistency (pure)
+  families.mjs  # decision family definitions
+  dataset.jsonl # 115 labeled seed cases (shared with openjev; replace with real held-out data)
+  results.md    # measured results
+test/           # node --test suites (no key needed)
 ```
 
 ### Error handling

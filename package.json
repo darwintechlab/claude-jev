@@ -7,7 +7,9 @@
   "scripts": {
     "build": "npm --workspace=mcp-server run build",
     "typecheck": "npm --workspace=mcp-server run typecheck",
-    "bench": "node bench/bench.mjs"
+    "test": "node --test test/*.test.mjs",
+    "bench": "node bench/bench.mjs",
+    "bench:eval": "node bench/eval.mjs"
   },
   "workspaces": ["mcp-server"],
   "engines": { "node": ">=20" }

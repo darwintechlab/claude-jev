@@ -16988,7 +16988,7 @@ var MAX_STATE_CHARS2 = 6e4;
 var MAX_QUESTIONS = 32;
 function resolveBackend(opts = {}) {
   const model = (opts.model ?? env("JEV_MODEL") ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL;
-  const apiKey = opts.apiKey ?? env("TYPESAFE_API_KEY") ?? env("JEV_API_KEY");
+  const apiKey = opts.apiKey || env("TYPESAFE_API_KEY") || env("JEV_API_KEY");
   if (!apiKey) {
     throw new Error("TYPESAFE_API_KEY is required for claude-jev (live-only). Set TYPESAFE_API_KEY=ts_... in env. No mock fallback.");
   }
@@ -17034,9 +17034,10 @@ function validateState(state) {
   if (asString.length > MAX_STATE_CHARS2) {
     const { text, origChars } = smartTruncate(asString);
     if (text.length > MAX_STATE_CHARS2) throw new Error(`state too large (${origChars} chars, max ${MAX_STATE_CHARS2}). Trim context.`);
+    console.error(`[claude-jev] state truncated: ${origChars} -> ${text.length} chars (head+tail kept)`);
     return text;
   }
-  return asString;
+  return state;
 }
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -17046,18 +17047,19 @@ function isRetryableStatus(s) {
 }
 async function decide(state, questions, opts = {}) {
   validateQuestions(questions);
-  validateState(state);
+  const sendState = validateState(state);
   const { apiKey, baseURL, model } = resolveBackend(opts);
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
-  const body = JSON.stringify({ model, state: typeof state === "string" ? state : state, questions });
+  const body = JSON.stringify({ model, state: sendState, questions });
   const headers = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };
   let lastErr;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const ac = new AbortController();
     const t = setTimeout(() => ac.abort(), timeoutMs);
+    let res;
     try {
-      const res = await fetch(baseURL, { method: "POST", headers, body, signal: ac.signal });
+      res = await fetch(baseURL, { method: "POST", headers, body, signal: ac.signal });
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
         const err = new Error(`Jev API ${res.status} ${res.statusText}: ${txt.slice(0, 800)}`);
@@ -17083,12 +17085,7 @@ async function decide(state, questions, opts = {}) {
         }
         throw abortErr;
       }
-      if (err.status !== void 0 && isRetryableStatus(err.status) && attempt < maxRetries) {
-        lastErr = err;
-        await sleep(250 * 2 ** attempt);
-        continue;
-      }
-      if (attempt < maxRetries && !err.status) {
+      if (!res && attempt < maxRetries) {
         lastErr = err;
         await sleep(250 * 2 ** attempt);
         continue;
@@ -17105,7 +17102,10 @@ async function decide(state, questions, opts = {}) {
 var DEFAULT_THRESHOLDS = {
   choice: 0.75,
   noul: 0.75,
-  score: 0.65
+  score: 0.65,
+  // Guardrails are asymmetric: auto-allowing a dangerous command is far worse
+  // than asking, so "safe" must be very confident before we skip the prompt.
+  guardrail: 0.95
 };
 function gateChoice(confidence, threshold = DEFAULT_THRESHOLDS.choice) {
   if (confidence >= threshold) return { action: "auto", reason: `confidence ${confidence.toFixed(2)} >= ${threshold}` };
