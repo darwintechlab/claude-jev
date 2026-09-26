@@ -1,5 +1,6 @@
 {
   "name": "claude-jev",
+  "displayName": "OpenJev for Claude Code",
   "version": "0.1.1",
   "description": "Jev System One for Claude Code — typed Choice/Noul/Score decisions via live TypeSafe API (same 5 tools as opencode-openjev, no mock).",
   "author": { "name": "OpenJev Contributors" },
