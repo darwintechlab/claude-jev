@@ -6,7 +6,7 @@ A coding agent spends much of its time on questions with only a few possible ans
 
 OpenJev gives Claude Code a model built for these questions. You pass it the text and the possible answers. It tells you which answer fits and how confident it is. It doesn't write text, so it can only answer with one of the options you gave it.
 
-`claude-jev` · MIT · Node ≥ 20 · Claude Code ≥ 2.0 · **[3-minute setup](./SETUP.md)**
+`claude-jev` · MIT · Node ≥ 20 · Current Claude Code with plugin `userConfig` support · **[3-minute setup](./SETUP.md)**
 
 **Maintained by:** https://darwintechlab.com, https://darwinevo.com & the community.
 
@@ -57,7 +57,7 @@ Installing the plugin gives Claude five new tools through the bundled MCP server
 
 ## Get started
 
-You need Claude Code 2.0+, Node 20+, and a free API key from **https://console.typesafe.ai**.
+You need a current Claude Code version with plugin `userConfig` support, Node 20+, and an API key from **https://console.typesafe.ai**. The plugin runs a local MCP server; it is not available on claude.ai on the web.
 
 1. **Add the plugin.** Install it from the bundled marketplace, or run straight from a clone.
 
@@ -65,18 +65,14 @@ You need Claude Code 2.0+, Node 20+, and a free API key from **https://console.t
    claude plugin marketplace add darwintechlab/claude-openjev
    claude plugin install claude-jev@openjev
    # or, from a clone:
-   claude --plugin-dir .
+   claude --plugin-dir ./plugin
    ```
 
-2. **Set your key** in your shell (keep it out of the repo).
-
-   ```bash
-   export TYPESAFE_API_KEY=ts_...
-   ```
+2. **Enter your key in the plugin configuration prompt** under **TypeSafe / OpenJev API key**. This field is marked sensitive; the host stores it in secure storage. Keep the default endpoint and model unless you use a self-hosted OpenJev service.
 
 3. **Restart Claude Code and run `jev_doctor`** to confirm the plugin is connected.
 
-> **No key yet?** Unlike the opencode version, `claude-jev` has no mock fallback — it's live-only. Without a key every call returns `{ok:false, error:"TYPESAFE_API_KEY is required…"}`.
+> **Upgrading from 0.1.0?** Enter your key in plugin settings. The installed plugin no longer reads shell `TYPESAFE_API_KEY` or `JEV_API_KEY` values. It is live-only: without a configured key, calls return `{ok:false, error:"API key is required…"}`.
 
 For the full walkthrough and troubleshooting, see **[SETUP.md](./SETUP.md)**.
 
@@ -120,7 +116,7 @@ Default confidence gates: `choice` and `noul` 0.75, `score` 0.65 (`mcp-server/sr
 ### Plugin vs skill
 
 * **Plugin** (`claude-jev`): the Claude Code plugin that bundles the MCP server `jev` and handles auth, retries, validation, gating, and audit logging. It works on its own.
-* **Skill** (`skills/jev/SKILL.md`): optional prompt guidance that makes Claude reach for `jev_*` by default for bounded decisions (routing, guardrails, approvals, scoring) instead of generating text.
+* **Skill** (`plugin/skills/jev/SKILL.md`): optional prompt guidance that makes Claude reach for `jev_*` by default for bounded decisions (routing, guardrails, approvals, scoring) instead of generating text.
 
 ---
 
@@ -137,7 +133,7 @@ claude plugin install claude-jev@openjev
 Dev, straight from a clone (no install):
 
 ```bash
-claude --plugin-dir .
+claude --plugin-dir ./plugin
 ```
 
 ### Local development
@@ -145,14 +141,14 @@ claude --plugin-dir .
 ```bash
 git clone https://github.com/darwintechlab/claude-openjev.git
 cd claude-openjev
-npm install
-npm run build          # typecheck + esbuild → mcp-server/dist/index.js
-claude plugin validate ./
+npm ci
+npm run build          # typecheck + readable ESM modules → plugin/runtime/
+claude plugin validate ./plugin
 ```
 
 ### Bundled skill (included)
 
-`skills/jev/SKILL.md` ships with the plugin and makes Claude default to
+`plugin/skills/jev/SKILL.md` ships with the plugin and makes Claude default to
 `jev_*` for bounded decisions — there is nothing extra to register. Invoke it
 with `/jev`, or let it trigger automatically.
 
@@ -163,14 +159,14 @@ with `/jev`, or let it trigger automatically.
 `claude-jev` is live-only: it talks to the hosted Jev endpoint, or to a
 self-hosted OpenJev-compatible one.
 
-| Backend | Env | Endpoint |
+| Backend | Plugin configuration | Endpoint |
 |---|---|---|
-| `typesafe` (live, required) | `TYPESAFE_API_KEY=ts_...` | `https://api.typesafe.ai/v1/systemone` |
-| `custom` (self-hosted OpenJev) | `JEV_BASE_URL=…` (+ `JEV_API_KEY=…`) | your URL |
+| `typesafe` (live, required) | `api_key`: your TypeSafe key | `https://api.typesafe.ai/v1/systemone` |
+| `custom` (self-hosted OpenJev) | `base_url`: your endpoint; `api_key`: its key | your URL |
 
-Optional overrides: `JEV_MODEL` (default `jev-latest`), `JEV_BASE_URL`.
+Optional configuration: `model` (default `jev-latest`), `base_url` (default above). Individual decision calls can also override the model.
 
-> **No `.env` auto-load.** The MCP server inherits Claude Code's environment, so set `TYPESAFE_API_KEY` with a shell export or in `mcpServers.jev.env` inside `.claude-plugin/plugin.json`. Restart Claude Code after changing it.
+The manifest at `plugin/.claude-plugin/plugin.json` declares `userConfig` and passes `${user_config.api_key}` to the server through `CLAUDE_JEV_API_KEY`. Model and endpoint use the same explicit mapping. There is no `.env` auto-load or fallback to other shell credentials. Never put a real key in the manifest or chat.
 
 **Verify wiring in Claude Code:**
 
@@ -223,14 +219,14 @@ Jev's numbers are **calibrated** (RLCD training), so higher confidence actually 
 ### Direct Node.js (without Claude Code)
 
 ```ts
-import { decide } from "./mcp-server/dist/client.js";
+import { decide } from "./plugin/runtime/client.mjs";
 const res = await decide("Help! payouts failing", {
   team: { type: "choice", instructions: "Route", criteria: { billing: "pay", technical: "bug" } },
   is_urgent: { type: "noul", instructions: "Is urgent?" },
-});
+}, { apiKey: "your-key" }); // supply credentials explicitly from your application's configuration
 ```
 
-See `bench/bench.mjs`.
+See `bench/bench.mjs`. Developer benchmarks use a separate environment adapter in `bench/client.mjs`, which is not distributed with the plugin.
 
 ### Integration ideas for Claude Code
 
@@ -246,8 +242,8 @@ The MCP tools can be called from skills, subagents, and hooks wherever you'd oth
 ## Development
 
 ```bash
-npm install
-npm run build      # typecheck + esbuild → mcp-server/dist/index.js
+npm ci
+npm run build      # typecheck + readable modules → plugin/runtime/; enforce <256 KB per file
 npm run typecheck  # tsc --noEmit
 npm test           # node --test: metrics, baseline parsing, gates, client (no key needed)
 npm run bench      # live latency/parallelism bench (needs TYPESAFE_API_KEY)
@@ -256,17 +252,29 @@ npm run bench:eval # decision-quality eval: accuracy/Brier/ECE/risk-coverage on 
 #   BASELINE_MODEL=claude-opus-5-5 BASELINE_CONCURRENCY=4 npm run bench:eval
 # or any OpenAI-compatible endpoint:
 #   BASELINE_MODEL=gpt-4o-mini BASELINE_API_KEY=sk-... npm run bench:eval
-claude plugin validate ./   # should pass
+claude plugin validate ./plugin
+claude plugin validate ./.claude-plugin/marketplace.json
+npm run package:plugin     # build + dist/claude-jev-0.1.1.zip for review upload
 ```
 
-`bench/eval.mjs` loads `./.env` if present. See [bench/results.md](./bench/results.md) for measured results and every knob.
+`bench/eval.mjs` loads `./.env` if present. Benchmarks retain `TYPESAFE_API_KEY`, `JEV_API_KEY`, `JEV_MODEL`, and `JEV_BASE_URL` for developer use; none of the benchmark code is shipped in `plugin/`. See [bench/results.md](./bench/results.md) for measured results and every knob.
 
 ### Project layout
 
 ```
 .claude-plugin/
-  plugin.json      # declares MCP server jev -> node ${CLAUDE_PLUGIN_ROOT}/mcp-server/dist/index.js
-  marketplace.json # repo is its own marketplace "openjev"
+  marketplace.json # marketplace "openjev", source: ./plugin
+plugin/            # complete, committed release; no package.json or lockfile
+  .claude-plugin/plugin.json # MCP server + sensitive userConfig + icon
+  runtime/         # generated readable .mjs modules, each <256 KB
+  skills/jev/SKILL.md # guidance for bounded decisions
+  favicon.png      # 512×512 icon copied from root favicon.png
+  LICENSE
+  THIRD_PARTY_NOTICES.md # generated bundled dependency licenses
+scripts/
+  build-plugin.mjs  # bundle, split, copy assets, preserve licenses, check size budget
+  check-plugin.mjs  # distribution checks
+  package-plugin.mjs # ZIP with plugin contents at its root
 mcp-server/
   src/
     client.ts   # live-only backend resolution, validation, retries, decide()
@@ -274,10 +282,8 @@ mcp-server/
     gate.ts     # confidence gating (auto / escalate thresholds)
     audit.ts    # privacy-safe audit log entries (state hash, not raw state)
     state.ts    # smartTruncate + criteria lint
-  dist/         # esbuild bundles: index.js (server), client.js + gate.js (for bench/tests)
-skills/
-  jev/SKILL.md  # optional: makes Claude default to jev_* tools
 bench/
+  client.mjs    # developer-only environment adapter
   bench.mjs     # live latency/parallelism bench
   eval.mjs      # decision-quality eval + LLM head-to-head (claude -p or OpenAI-compatible)
   metrics.mjs   # pure metric functions (Brier, ECE, risk-coverage, Wilson, McNemar, bootstrap)
@@ -293,7 +299,7 @@ test/           # node --test suites (no key needed)
 * Input validation before network (`state` 0–60k chars, 1–32 questions, per-type criteria limits). Longer `state` is head+tail truncated with a marker.
 * Retries with exponential backoff + jitter for `429` / `529` / `5xx` and timeouts (per `docs.typesafe.ai/api`).
 * Auth via `Authorization: Bearer …`; errors do not log the URL or key, only `backend`.
-* Live-only: there is no mock fallback, so a missing `TYPESAFE_API_KEY` fails loudly instead of returning placeholder answers.
+* Live-only: there is no mock fallback, so a missing configured API key fails loudly instead of returning placeholder answers.
 
 ---
 
@@ -314,10 +320,14 @@ MIT — see `LICENSE`.
 
 ## Ecosystem
 
-To propose this for the Claude Code plugin marketplace, ensure `claude plugin validate ./` passes and the marketplace entry installs cleanly:
+The release root is **`plugin/`**, not the repository root. The marketplace entry points there so development dependencies, native build tools, tests, and benchmarks are excluded from the installed plugin. Commit regenerated `plugin/runtime/` files and assets after source changes.
+
+For directory review, upload the ZIP produced by `npm run package:plugin`, or select `plugin/` as the plugin path for a repository submission. The ZIP has `.claude-plugin/plugin.json` at its root. Do not upload the entire development repository. After pushing/uploading version `0.1.1`, resubmit the unlisted plugin for review.
 
 ```bash
-claude plugin validate ./
+claude plugin validate ./plugin
+claude plugin validate ./.claude-plugin/marketplace.json
+npm run package:plugin
 claude plugin marketplace add darwintechlab/claude-openjev
 claude plugin install claude-jev@openjev
 ```

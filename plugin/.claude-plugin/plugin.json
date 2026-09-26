@@ -1,0 +1,43 @@
+{
+  "name": "claude-jev",
+  "version": "0.1.1",
+  "description": "Jev System One for Claude Code — typed Choice/Noul/Score decisions via live TypeSafe API (same 5 tools as opencode-openjev, no mock).",
+  "author": { "name": "OpenJev Contributors" },
+  "homepage": "https://github.com/darwintechlab/claude-openjev",
+  "repository": "https://github.com/darwintechlab/claude-openjev",
+  "license": "MIT",
+  "icon": "./favicon.png",
+  "keywords": ["jev", "typesafe", "system-one", "claude-code", "mcp", "typed-decisions"],
+  "userConfig": {
+    "api_key": {
+      "type": "string",
+      "title": "TypeSafe / OpenJev API key",
+      "description": "API key from console.typesafe.ai, or your self-hosted OpenJev endpoint.",
+      "required": true,
+      "sensitive": true
+    },
+    "model": {
+      "type": "string",
+      "title": "Jev model",
+      "description": "Model used for typed decisions.",
+      "default": "jev-latest"
+    },
+    "base_url": {
+      "type": "string",
+      "title": "Jev API endpoint",
+      "description": "Endpoint that receives your decision text and API key. Change only for your own OpenJev-compatible service.",
+      "default": "https://api.typesafe.ai/v1/systemone"
+    }
+  },
+  "mcpServers": {
+    "jev": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/runtime/index.mjs"],
+      "env": {
+        "CLAUDE_JEV_API_KEY": "${user_config.api_key}",
+        "CLAUDE_JEV_MODEL": "${user_config.model}",
+        "CLAUDE_JEV_BASE_URL": "${user_config.base_url}"
+      }
+    }
+  }
+}

@@ -1,11 +1,12 @@
 {
   "name": "claude-jev",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Claude Code plugin — Jev live typed decisions (mirror of opencode-openjev, no mock)",
   "type": "module",
   "scripts": {
     "build": "npm --workspace=mcp-server run build",
+    "package:plugin": "npm run build && node scripts/package-plugin.mjs",
     "typecheck": "npm --workspace=mcp-server run typecheck",
     "test": "node --test test/*.test.mjs",
     "bench": "node bench/bench.mjs",

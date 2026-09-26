@@ -1,107 +1,101 @@
 # Setup — claude-jev (live-only MCP, 3 minutes)
 
-Claude Code mirror of `opencode-openjev` — same 5 tools, same `gated`/`audit`/`smartTruncate`, but **live-only** (no mock fallback) over `https://api.typesafe.ai/v1/systemone`.
+Five typed decision tools over the live TypeSafe / OpenJev API, with confidence gating, audit logs, and smart truncation.
 
 ## 1. Prerequisites
 
-* **Node >=20**, **Claude Code** (`claude --version`)
-* **TYPESAFE_API_KEY** — https://console.typesafe.ai → Create key `ts_…`
+* **Node.js 20+**
+* **Current Claude Code** with plugin `userConfig` support (`claude --version`)
+* An API key from **https://console.typesafe.ai**, or your self-hosted OpenJev service
 
-## 2. Get your key
+This is a local stdio MCP server for Claude Code / compatible desktop hosts. It is not a web connector for claude.ai.
+
+## 2. Install
 
 ```bash
-export TYPESAFE_API_KEY=ts_…
-# persist:
-echo 'export TYPESAFE_API_KEY=ts_…' >> ~/.zshrc && source ~/.zshrc
+claude plugin marketplace add darwintechlab/claude-openjev
+claude plugin install claude-jev@openjev
 ```
 
-## 3. Install the plugin (local — no registry needed)
+The marketplace installs the repository's `plugin/` directory. The readable JavaScript runtime is included, so installation needs no npm install or build step.
+
+For a local clone:
 
 ```bash
 git clone https://github.com/darwintechlab/claude-openjev.git
 cd claude-openjev
-npm install --cache /tmp/npm-cache
-npm run build   # typecheck + esbuild → single self-contained mcp-server/dist/index.js
-
-claude plugin validate ./   # ✔ Validation passed
+claude plugin validate ./plugin
+claude --plugin-dir ./plugin
 ```
 
-The plugin is **file-based** — no `npm publish` required. `mcp-server` is declared inline under `mcpServers` in `.claude-plugin/plugin.json` as `jev → node ${CLAUDE_PLUGIN_ROOT}/mcp-server/dist/index.js` with `env:TYPESAFE_API_KEY` passthrough. (Not a root `.mcp.json`: Claude Code would also load that as a *project* server when you open this repo, where `${CLAUDE_PLUGIN_ROOT}` is undefined → `CONNECTION_CLOSED`.)
+## 3. Configure your key
 
-## 4. Run with Claude
+When the plugin configuration dialog appears, enter:
 
-Dev (recommended — no install):
+| Field | Value |
+|---|---|
+| **TypeSafe / OpenJev API key** | Your API key (required, sensitive) |
+| **Jev model** | `jev-latest`, unless you need a specific version |
+| **Jev API endpoint** | `https://api.typesafe.ai/v1/systemone`, or your own compatible endpoint |
 
-```bash
-TYPESAFE_API_KEY=ts_... claude --plugin-dir .
-# inside Claude:
-# /jev  (skill)  or just ask: "use jev_choice to route this ticket"
-```
+The host stores sensitive configuration in secure storage and supplies it to the MCP process. Do not paste your key into chat, commit it, or write it into the manifest.
 
-Installed (loads in every project) — the repo is its own marketplace (`openjev`, `.claude-plugin/marketplace.json`):
+**Upgrading from 0.1.0:** enter your key in plugin settings. The installed plugin no longer uses shell `TYPESAFE_API_KEY` / `JEV_API_KEY` values or loads `.env` files. Restart the MCP server or Claude Code after updating configuration.
 
-```bash
-claude plugin marketplace add darwintechlab/claude-openjev   # or a local clone path
-claude plugin install claude-jev@openjev
-# then in any project: claude (plugin auto-loads)
-```
+## 4. Verify
 
-Verify inside Claude:
+Ask Claude to run:
 
 ```
 jev_doctor
-# → {ok:true, model:"jev-1.13.0", answers:{team:{choice:"billing", confidence:0.94}, is_urgent:{noul:0.95}}}
 ```
 
-Headless MCP smoke (no Claude):
+A successful result contains `ok: true`, the model, and typed answers. A missing configuration produces `API key is required…`; there is no mock fallback.
 
-```bash
-printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"jev_doctor","arguments":{}}}\n' | TYPESAFE_API_KEY=ts_... node mcp-server/dist/index.js
-```
-
-## 5. First decisions (copy-paste in Claude)
+## 5. First decisions
 
 ```
-# in Claude's tool call:
-jev_choice { state:"Help! payouts failing 3 days", instructions:"Route to team", criteria:'{"billing":"payments/invoices","technical":"bugs/outages","sales":"buying","spam":"irrelevant"}' }
-# → {choice:"billing", confidence:1.00, gated:{action:"auto"}, usage:{input_tokens:348}}
+jev_choice { state:"Help! payouts failing 3 days", instructions:"Route to team", criteria:'{"billing":"payments, invoices, and payouts","technical":"software bugs and outages","sales":"buying plans and upgrades","spam":"irrelevant promotional messages"}' }
 
-# ambiguous → escalate:
-jev_choice { state:"Please help", instructions:"Route to team", criteria:'{"billing":"pay","technical":"bug","sales":"buy","spam":"junk"}' }
-# → {choice:"technical", confidence:0.38, gated:{action:"escalate", reason:"conf 0.38 < 0.75 …"}}
-# → then ask Claude for rationale
-
-# parallel (one 70–500ms call):
-jev_ask { state:'{"ticket":"payouts failing"}', questions:'{"team":{"type":"choice","instructions":"Route","criteria":{"billing":"pay","technical":"bug"}},"is_urgent":{"type":"noul","instructions":"Is urgent?"}}' }
+jev_ask { state:"Please help with my invoice", questions:'{"team":{"type":"choice","instructions":"Route to team","criteria":{"billing":"payments and invoices","technical":"software bugs and outages"}},"is_urgent":{"type":"noul","instructions":"Is urgent?"}}' }
 ```
 
-## 6. Env
+Every decision includes `gated.action`: `auto` for sufficiently confident answers, or `escalate` for review by Claude or a person. Keep irreversible actions behind human approval.
 
-| Var | Purpose |
-|---|---|
-| `TYPESAFE_API_KEY` | **Required** — live-only, errors clearly if missing (`TYPESAFE_API_KEY is required… No mock fallback.`) |
-| `JEV_MODEL` | Override (`jev-latest` → `jev-1.13.0`) |
-| `JEV_BASE_URL` | Self-hosted OpenJev |
-
-No `.env` auto-load here (MCP inherits Claude's env) — use shell export or `mcpServers.jev.env` in `.claude-plugin/plugin.json`.
-
-## 7. Troubleshooting
+## 6. Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| `ok:false, error:"TYPESAFE_API_KEY is required…"` | `echo $TYPESAFE_API_KEY` empty → `export TYPESAFE_API_KEY=ts_…` and restart Claude/MCP. |
-| `description too short` warnings | Option desc <12 chars — add a sentence (`"pay"` → `"payments, invoices, payouts"`). |
-| `state … truncated` | >60k chars — `smartTruncate` keeps 60% head + tail + marker. Summarize first. |
-| `429/529` | Auto-retry 2× with backoff. Still failing → back off 1s and retry, or lower `questions` batch. |
-| `gated:escalate` on every call | Overlapping criteria (Jaccard >0.6) — differentiate rubrics. |
+| `API key is required…` | Enter the key in the plugin configuration dialog, then restart Claude/MCP. |
+| API authentication error | Check the configured key and endpoint belong to the same service. |
+| Plugin configuration is unsupported | Update Claude Code. |
+| `description too short` warnings | Write a descriptive sentence for each option. |
+| `state … truncated` | Input exceeds 60k characters; summarize it first. |
+| `429/529` | The client retries twice with backoff. Reduce concurrency if errors persist. |
+| `gated:escalate` on every call | Make the criteria more distinct or supply better context. |
 
-## 8. Bench (live, same as Opencode)
+## 7. Development and review packaging
 
 ```bash
-TYPESAFE_API_KEY=ts_... node bench/bench.mjs
-# → 1q p50 307ms, 27q p50 287ms (+5ms), 10/10 100% @ conf 0.96, par 8×
+npm ci
+npm run build
+npm test
+claude plugin validate ./plugin
+claude plugin validate ./.claude-plugin/marketplace.json
+npm run package:plugin
 ```
 
-## 9. Opencode parity
+The build emits readable, unminified `.mjs` modules in `plugin/runtime/`, copies the supplied 512×512 `favicon.png`, and preserves bundled dependency licenses. It rejects files at or above 256,000 bytes and package manifests/lockfiles inside the release directory.
 
-This is a 1:1 mirror of `opencode-openjev/src/*` (`client`/`gate`/`audit`/`state`) — same `60k` cap, `32` questions, `2` retries, `15s` timeout, `0.75/0.65` thresholds, `lint` + `audit` to `stderr`.
+Commit the regenerated release files. For Anthropic review, upload **`dist/claude-jev-0.1.1.zip`**, or use **`plugin/`** as the repository plugin path. Do not submit the development repository root. The ZIP contains `.claude-plugin/plugin.json` directly at its root. Push/upload the new version and resubmit the unlisted plugin for review.
+
+The offline test suite starts a copy of the packaged MCP server outside the repository, without `node_modules`, and exercises its tools against a local test endpoint.
+
+## 8. Developer benchmarks
+
+```bash
+TYPESAFE_API_KEY=ts_... npm run bench
+TYPESAFE_API_KEY=ts_... npm run bench:eval
+```
+
+Developer benchmarks retain their shell configuration via `bench/client.mjs`; `bench/eval.mjs` also loads a local `.env` if present. These scripts and their credentials handling are excluded from the distributed plugin. See [bench/results.md](./bench/results.md) for measured results.

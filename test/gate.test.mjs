@@ -8,7 +8,7 @@ import {
   gateGuardrailFlags,
   gateAnswer,
   DEFAULT_THRESHOLDS,
-} from "../mcp-server/dist/gate.js";
+} from "../plugin/runtime/gate.mjs";
 
 describe("symmetric gates", () => {
   it("choice auto at/above threshold", () => {

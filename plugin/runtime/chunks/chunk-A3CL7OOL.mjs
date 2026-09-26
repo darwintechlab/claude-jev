@@ -1,4 +1,4 @@
-// src/state.ts
+// mcp-server/src/state.ts
 var MAX_STATE_CHARS = 6e4;
 var HEAD_RATIO = 0.6;
 function smartTruncate(input, max = MAX_STATE_CHARS) {
@@ -13,32 +13,49 @@ function smartTruncate(input, max = MAX_STATE_CHARS) {
 `;
   return { text: input.slice(0, head) + marker + input.slice(origChars - tail), truncated: true, origChars };
 }
-
-// src/client.ts
-function env(name) {
-  try {
-    const fromGlobal = globalThis.process?.env?.[name];
-    if (fromGlobal !== void 0) return fromGlobal;
-    if (typeof process !== "undefined" && process.env) {
-      return process.env[name];
-    }
-    return void 0;
-  } catch {
-    return void 0;
+function lintChoiceCriteria(criteria) {
+  const warnings = [];
+  for (const [opt, desc] of Object.entries(criteria)) {
+    if (desc === null) continue;
+    const d = desc.trim();
+    if (d.length < 12) warnings.push(`option "${opt}" description too short (${d.length} chars) \u2014 add a rubric sentence`);
+    if (d.length > 2e3) warnings.push(`option "${opt}" description too long \u2014 trim to <500 chars`);
   }
+  const opts = Object.keys(criteria);
+  for (let i = 0; i < opts.length; i++) {
+    for (let j = i + 1; j < opts.length; j++) {
+      const a = new Set((criteria[opts[i]] ?? "").toLowerCase().split(/\W+/).filter(Boolean));
+      const b = new Set((criteria[opts[j]] ?? "").toLowerCase().split(/\W+/).filter(Boolean));
+      const inter = [...a].filter((x) => b.has(x)).length;
+      const union = (/* @__PURE__ */ new Set([...a, ...b])).size;
+      const jacc = union ? inter / union : 0;
+      if (jacc > 0.6 && a.size > 3) warnings.push(`options "${opts[i]}"/"${opts[j]}" descriptions overlap (Jaccard ${jacc.toFixed(2)}) \u2014 differentiate rubrics`);
+    }
+  }
+  return warnings;
 }
+function lintScoreLevels(levels) {
+  const w = [];
+  if (levels.length < 2) w.push("score needs \u22652 levels");
+  if (levels.length > 16) w.push("score supports \u226416 levels");
+  const uniq = new Set(levels.map((s) => s.trim().toLowerCase()));
+  if (uniq.size !== levels.length) w.push("score levels must be distinct");
+  return w;
+}
+
+// mcp-server/src/client.ts
 var DEFAULT_MODEL = "jev-latest";
 var DEFAULT_TIMEOUT_MS = 15e3;
 var DEFAULT_MAX_RETRIES = 2;
 var MAX_STATE_CHARS2 = 6e4;
 var MAX_QUESTIONS = 32;
 function resolveBackend(opts = {}) {
-  const model = (opts.model ?? env("JEV_MODEL") ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL;
-  const apiKey = opts.apiKey || env("TYPESAFE_API_KEY") || env("JEV_API_KEY");
+  const model = (opts.model ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL;
+  const apiKey = opts.apiKey?.trim();
   if (!apiKey) {
-    throw new Error("TYPESAFE_API_KEY is required for claude-jev (live-only). Set TYPESAFE_API_KEY=ts_... in env. No mock fallback.");
+    throw new Error("API key is required for claude-jev (live-only). Configure the API key in the plugin's settings. Direct clients must pass apiKey. No mock fallback.");
   }
-  const baseURL = opts.baseURL ?? env("JEV_BASE_URL") ?? "https://api.typesafe.ai/v1/systemone";
+  const baseURL = opts.baseURL?.trim() || "https://api.typesafe.ai/v1/systemone";
   return { apiKey, baseURL, model };
 }
 function validateQuestions(questions) {
@@ -143,13 +160,16 @@ async function decide(state, questions, opts = {}) {
   }
   throw lastErr ?? new Error("Jev API: unknown error after retries");
 }
+
 export {
-  DEFAULT_MAX_RETRIES,
+  lintChoiceCriteria,
+  lintScoreLevels,
   DEFAULT_MODEL,
   DEFAULT_TIMEOUT_MS,
-  MAX_QUESTIONS,
+  DEFAULT_MAX_RETRIES,
   MAX_STATE_CHARS2 as MAX_STATE_CHARS,
-  decide,
+  MAX_QUESTIONS,
   resolveBackend,
-  validateQuestions
+  validateQuestions,
+  decide
 };

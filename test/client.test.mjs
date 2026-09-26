@@ -1,6 +1,6 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { decide, resolveBackend, MAX_STATE_CHARS } from "../mcp-server/dist/client.js";
+import { decide, resolveBackend, MAX_STATE_CHARS } from "../plugin/runtime/client.mjs";
 
 const realFetch = globalThis.fetch;
 const q = { q: { type: "noul", instructions: "Is this urgent?" } };
@@ -66,14 +66,14 @@ describe("decide — retries", () => {
 });
 
 describe("resolveBackend", () => {
-  it("treats an empty TYPESAFE_API_KEY as unset and falls back to JEV_API_KEY", () => {
+  it("requires explicit credentials even when shell credentials exist", () => {
     const saved = { t: process.env.TYPESAFE_API_KEY, j: process.env.JEV_API_KEY };
     try {
-      process.env.TYPESAFE_API_KEY = "";
+      process.env.TYPESAFE_API_KEY = "typesafe-key";
       process.env.JEV_API_KEY = "jev-key";
-      assert.equal(resolveBackend().apiKey, "jev-key");
-      delete process.env.JEV_API_KEY;
-      assert.throws(() => resolveBackend(), /TYPESAFE_API_KEY is required/);
+      assert.throws(() => resolveBackend(), /API key is required/);
+      assert.throws(() => resolveBackend({ apiKey: "  " }), /API key is required/);
+      assert.equal(resolveBackend({ apiKey: "explicit-key" }).apiKey, "explicit-key");
     } finally {
       for (const [k, v] of [["TYPESAFE_API_KEY", saved.t], ["JEV_API_KEY", saved.j]]) {
         if (v === undefined) delete process.env[k];

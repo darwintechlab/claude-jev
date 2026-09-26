@@ -1,4 +1,4 @@
-// src/gate.ts
+// mcp-server/src/gate.ts
 var DEFAULT_THRESHOLDS = {
   choice: 0.75,
   noul: 0.75,
@@ -36,12 +36,13 @@ function gateAnswer(answer, threshold) {
   if (answer.type === "score") return gateScore(answer.confidence ?? 0, threshold);
   return { action: "auto", reason: "unknown type" };
 }
+
 export {
   DEFAULT_THRESHOLDS,
-  gateAnswer,
   gateChoice,
+  gateNoul,
+  gateScore,
   gateGuardrail,
   gateGuardrailFlags,
-  gateNoul,
-  gateScore
+  gateAnswer
 };

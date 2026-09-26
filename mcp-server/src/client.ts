@@ -1,6 +1,6 @@
 /**
  * Jev live client — mirrors opencode-openjev/src/client.ts exactly
- * but live-only: no mock fallback. Errors if TYPESAFE_API_KEY missing.
+ * but live-only: no mock fallback. Credentials are supplied explicitly by the caller.
  * Spec: docs.typesafe.ai/api — POST {model, state, questions} -> {model, answers, usage}
  */
 
@@ -36,19 +36,6 @@ export type ClientOptions = {
   maxRetries?: number;
 };
 
-function env(name: string): string | undefined {
-  try {
-    const fromGlobal = (globalThis as unknown as { process?: { env?: Record<string, string> } }).process?.env?.[name];
-    if (fromGlobal !== undefined) return fromGlobal;
-    if (typeof process !== "undefined" && (process as unknown as { env: Record<string, string> }).env) {
-      return (process as unknown as { env: Record<string, string> }).env[name];
-    }
-    return undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 export const DEFAULT_MODEL = "jev-latest";
 export const DEFAULT_TIMEOUT_MS = 15_000;
 export const DEFAULT_MAX_RETRIES = 2;
@@ -56,13 +43,12 @@ export const MAX_STATE_CHARS = 60_000;
 export const MAX_QUESTIONS = 32;
 
 export function resolveBackend(opts: ClientOptions = {}): { apiKey: string; baseURL: string; model: string } {
-  const model = (opts.model ?? env("JEV_MODEL") ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL;
-  // `||` not `??`: plugin.json passes TYPESAFE_API_KEY as "" when unset, which must fall through.
-  const apiKey = opts.apiKey || env("TYPESAFE_API_KEY") || env("JEV_API_KEY");
+  const model = (opts.model ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL;
+  const apiKey = opts.apiKey?.trim();
   if (!apiKey) {
-    throw new Error("TYPESAFE_API_KEY is required for claude-jev (live-only). Set TYPESAFE_API_KEY=ts_... in env. No mock fallback.");
+    throw new Error("API key is required for claude-jev (live-only). Configure the API key in the plugin's settings. Direct clients must pass apiKey. No mock fallback.");
   }
-  const baseURL = opts.baseURL ?? env("JEV_BASE_URL") ?? "https://api.typesafe.ai/v1/systemone";
+  const baseURL = opts.baseURL?.trim() || "https://api.typesafe.ai/v1/systemone";
   return { apiKey, baseURL, model };
 }
 

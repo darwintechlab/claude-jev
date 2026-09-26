@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Live-only bench — same logic as OpenJev/bench/bench.mjs but no mock
 import { performance } from "node:perf_hooks";
-import { decide } from "../mcp-server/dist/client.js";
+import { decide } from "./client.mjs";
 
 const tickets = [
   { state: "Help! payouts failing 3 days — order #48281 hasn't cleared.", expect: "billing" },

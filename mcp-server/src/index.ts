@@ -2,12 +2,23 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { decide, type Questions } from "./client.js";
+import { decide as requestDecision, type ClientOptions, type Questions } from "./client.js";
 import { gateChoice, gateNoul, gateScore, gateAnswer } from "./gate.js";
 import { toAuditEntry } from "./audit.js";
 import { lintChoiceCriteria, lintScoreLevels } from "./state.js";
 
-const server = new Server({ name: "claude-jev", version: "0.1.0" }, { capabilities: { tools: {} } });
+const server = new Server({ name: "claude-jev", version: "0.1.1" }, { capabilities: { tools: {} } });
+
+// These variables are explicitly injected from the plugin's userConfig. Do not
+// fall back to unrelated shell credentials or load credentials from local files.
+function decide(state: string, questions: Questions, opts: ClientOptions = {}) {
+  return requestDecision(state, questions, {
+    ...opts,
+    apiKey: process.env.CLAUDE_JEV_API_KEY,
+    model: opts.model || process.env.CLAUDE_JEV_MODEL,
+    baseURL: process.env.CLAUDE_JEV_BASE_URL,
+  });
+}
 
 function parseCriteriaObject(input: string): Record<string, string | null> {
   const parsed = JSON.parse(input);
@@ -83,7 +94,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "jev_doctor",
-      description: "Check live Jev wiring: auth + smoke decision. Requires TYPESAFE_API_KEY. Mirrors opencode jev_doctor.",
+      description: "Check live Jev wiring: auth + smoke decision. Requires an API key configured in plugin settings. Mirrors opencode jev_doctor.",
       inputSchema: { type: "object", properties: { probe_state: { type: "string" } } },
     },
   ],
